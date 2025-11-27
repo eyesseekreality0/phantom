@@ -3,7 +3,7 @@ import { MessageCircle, X, Send, Skull, User, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface ChatBubbleProps {
-  onGameLoginAdded: (game: string, username: string, password: string) => void;
+  onGameAccountAdded: (game: string, username: string, password: string) => void;
 }
 
 interface ChatMessage {
@@ -14,7 +14,7 @@ interface ChatMessage {
   is_automated?: boolean;
 }
 
-export default function ChatBubble({ onGameLoginAdded }: ChatBubbleProps) {
+export default function ChatBubble({ onGameAccountAdded }: ChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -135,7 +135,7 @@ export default function ChatBubble({ onGameLoginAdded }: ChatBubbleProps) {
     
     if (lowerMessage.includes('vblink')) {
       const { username, password } = generateRandomCredentials();
-      onGameLoginAdded('VBlink', username, password);
+      onGameAccountAdded('VBlink', username, password);
       return {
         response: `Perfect! I've set up your VBlink account:\n\nUsername: ${username}\nPassword: ${password}\n\nYou can now access VBlink directly from the games section. Your login details are saved and will appear on the game card!`,
         isAutomated: true
@@ -144,7 +144,7 @@ export default function ChatBubble({ onGameLoginAdded }: ChatBubbleProps) {
     
     if (lowerMessage.includes('ultrapanda')) {
       const { username, password } = generateRandomCredentials();
-      onGameLoginAdded('UltraPanda', username, password);
+      onGameAccountAdded('UltraPanda', username, password);
       return {
         response: `Excellent! Your UltraPanda account is ready:\n\nUsername: ${username}\nPassword: ${password}\n\nHead to the games section and click on UltraPanda to start playing. Your credentials are now saved!`,
         isAutomated: true

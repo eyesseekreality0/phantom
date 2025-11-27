@@ -23,12 +23,15 @@ interface User {
   username: string;
   display_name?: string;
   profile_picture?: string;
+  balance: number;
 }
 
-interface GameLogin {
+interface GameAccount {
+  id: string;
   game: string;
   username: string;
   password: string;
+  balance: number;
 }
 
 function App() {
@@ -37,7 +40,7 @@ function App() {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [gameLogins, setGameLogins] = useState<GameLogin[]>([]);
+  const [gameAccounts, setGameAccounts] = useState<GameAccount[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const location = useLocation();
 
@@ -79,14 +82,34 @@ function App() {
         email: data.email,
         username: data.username,
         display_name: data.display_name,
-        profile_picture: data.profile_picture
+        profile_picture: data.profile_picture,
+        balance: data.balance || 0
       });
 
       // Check if user is admin (you can modify this logic)
       setIsAdmin(data.email === 'admin@phantomsfortune.com' || data.username === 'admin');
+
+      // Fetch user's game accounts
+      fetchGameAccounts(userId);
     }
   };
 
+  const fetchGameAccounts = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('user_game_accounts')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (data && !error) {
+      setGameAccounts(data.map(account => ({
+        id: account.id,
+        game: account.game_name,
+        username: account.game_username,
+        password: account.game_password,
+        balance: account.game_balance
+      })));
+    }
+  };
   const handleLogin = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -146,18 +169,51 @@ function App() {
   };
 
   const handleDeposit = async (amount: number, method: string) => {
-    // Simulate deposit with approval process
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    alert(`${method} deposit of $${amount} submitted for approval. Funds will be available within 24 hours.`);
+    if (!user) return;
+
+    try {
+      // Create transaction record
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          type: 'deposit',
+          amount: amount,
+          status: method === 'stripe' ? 'completed' : 'pending',
+          payment_method: method,
+          description: `Deposit via ${method}`
+        });
+
+      if (transactionError) throw transactionError;
+
+      if (method === 'stripe') {
+        // For Stripe, immediately update balance (in real implementation, this would be done via webhook)
+        const { error: balanceError } = await supabase
+          .from('user_profiles')
+          .update({ balance: user.balance + amount })
+          .eq('id', user.id);
+
+        if (balanceError) throw balanceError;
+
+        // Refresh user profile
+        fetchUserProfile(user.id);
+        alert(`$${amount} has been added to your account!`);
+      } else {
+        alert(`${method} deposit of $${amount} submitted for approval. Funds will be available within 24 hours.`);
+      }
+    } catch (error) {
+      console.error('Deposit error:', error);
+      alert('Deposit failed. Please try again.');
+    }
   };
 
   const handleGameSelect = (gameUrl: string, gameName: string) => {
     // Check if user has login for this game
-    const gameLogin = gameLogins.find(login => login.game.toLowerCase() === gameName.toLowerCase());
+    const gameAccount = gameAccounts.find(account => account.game.toLowerCase() === gameName.toLowerCase());
     
-    if (gameLogin) {
+    if (gameAccount) {
       // Show login details and open game
-      alert(`Game Login Details:\nUsername: ${gameLogin.username}\nPassword: ${gameLogin.password}\n\nOpening ${gameName}...`);
+      alert(`Game Login Details:\nUsername: ${gameAccount.username}\nPassword: ${gameAccount.password}\nGame Balance: $${gameAccount.balance}\n\nOpening ${gameName}...`);
       window.open(gameUrl, '_blank');
     } else {
       // Prompt to contact support
@@ -165,8 +221,75 @@ function App() {
     }
   };
 
-  const addGameLogin = (game: string, username: string, password: string) => {
-    setGameLogins(prev => [...prev, { game, username, password }]);
+  const addGameAccount = async (game: string, username: string, password: string) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_game_accounts')
+        .insert({
+          user_id: user.id,
+          game_name: game,
+          game_username: username,
+          game_password: password,
+          game_balance: 0
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Refresh game accounts
+      fetchGameAccounts(user.id);
+    } catch (error) {
+      console.error('Error adding game account:', error);
+    }
+  };
+
+  const handleTransferToGame = async (gameId: string, amount: number) => {
+    if (!user || amount <= 0 || amount > user.balance) return;
+
+    try {
+      const gameAccount = gameAccounts.find(acc => acc.id === gameId);
+      if (!gameAccount) return;
+
+      // Update user balance
+      const { error: userError } = await supabase
+        .from('user_profiles')
+        .update({ balance: user.balance - amount })
+        .eq('id', user.id);
+
+      if (userError) throw userError;
+
+      // Update game account balance
+      const { error: gameError } = await supabase
+        .from('user_game_accounts')
+        .update({ game_balance: gameAccount.balance + amount })
+        .eq('id', gameId);
+
+      if (gameError) throw gameError;
+
+      // Create transaction record
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          type: 'transfer_to_game',
+          amount: amount,
+          status: 'completed',
+          game_name: gameAccount.game,
+          description: `Transfer to ${gameAccount.game}`
+        });
+
+      if (transactionError) throw transactionError;
+
+      // Refresh data
+      fetchUserProfile(user.id);
+      alert(`$${amount} transferred to ${gameAccount.game} successfully!`);
+    } catch (error) {
+      console.error('Transfer error:', error);
+      alert('Transfer failed. Please try again.');
+    }
   };
 
   const openAuthModal = (mode: 'login' | 'signup') => {
@@ -224,13 +347,15 @@ function App() {
             <Home 
               onGetStarted={() => user ? setShowDepositModal(true) : openAuthModal('signup')}
               onGameSelect={handleGameSelect}
-              gameLogins={gameLogins}
+              gameAccounts={gameAccounts}
+              onTransferToGame={handleTransferToGame}
             />
           } />
           <Route path="/games" element={
             <Games 
               onGameSelect={handleGameSelect}
-              gameLogins={gameLogins}
+              gameAccounts={gameAccounts}
+              onTransferToGame={handleTransferToGame}
             />
           } />
           <Route path="/promotions" element={<Promotions />} />
@@ -265,7 +390,7 @@ function App() {
           onProfileUpdate={handleProfileUpdate}
         />
 
-        <ChatBubble onGameLoginAdded={addGameLogin} />
+        <ChatBubble onGameAccountAdded={addGameAccount} />
       </div>
     </div>
   );

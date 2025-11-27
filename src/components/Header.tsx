@@ -8,6 +8,7 @@ interface User {
   username: string;
   display_name?: string;
   profile_picture?: string;
+  balance: number;
 }
 
 interface HeaderProps {
@@ -76,6 +77,10 @@ export default function Header({ user, onLogin, onSignup, onDeposit, onProfileEd
           <div className="flex items-center space-x-4">
             {user ? (
               <div className="flex items-center space-x-4">
+                <div className="hidden md:flex items-center space-x-3 bg-gradient-to-r from-purple-900/50 to-gray-900/50 rounded-lg px-4 py-2 border border-purple-500/30">
+                  <span className="text-purple-300 text-sm font-semibold">Balance:</span>
+                  <span className="text-white font-bold text-lg">${user.balance.toFixed(2)}</span>
+                </div>
                 <span className="text-gray-300 hidden md:block">
                   Welcome, {user.display_name || user.username}
                 </span>

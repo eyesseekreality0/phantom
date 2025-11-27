@@ -2,23 +2,26 @@ import React from 'react';
 import Hero from '../components/Hero';
 import GamesSection from '../components/GamesSection';
 
-interface GameLogin {
+interface GameAccount {
+  id: string;
   game: string;
   username: string;
   password: string;
+  balance: number;
 }
 
 interface HomeProps {
   onGetStarted: () => void;
   onGameSelect: (gameUrl: string, gameName: string) => void;
-  gameLogins: GameLogin[];
+  gameAccounts: GameAccount[];
+  onTransferToGame: (gameId: string, amount: number) => void;
 }
 
-export default function Home({ onGetStarted, onGameSelect, gameLogins }: HomeProps) {
+export default function Home({ onGetStarted, onGameSelect, gameAccounts, onTransferToGame }: HomeProps) {
   return (
     <>
       <Hero onGetStarted={onGetStarted} />
-      <GamesSection onGameSelect={onGameSelect} gameLogins={gameLogins} />
+      <GamesSection onGameSelect={onGameSelect} gameAccounts={gameAccounts} onTransferToGame={onTransferToGame} />
     </>
   );
 }

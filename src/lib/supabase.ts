@@ -40,31 +40,69 @@ export type Database = {
           updated_at?: string | null
         }
       }
+      user_game_accounts: {
+        Row: {
+          id: string
+          user_id: string
+          game_name: string
+          game_username: string
+          game_password: string
+          game_balance: number
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          game_name: string
+          game_username: string
+          game_password: string
+          game_balance?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          game_name?: string
+          game_username?: string
+          game_password?: string
+          game_balance?: number
+          created_at?: string | null
+          updated_at?: string | null
+        }
+      }
       transactions: {
         Row: {
           id: string
           user_id: string
-          type: 'deposit' | 'withdrawal' | 'game_win' | 'game_loss'
+          type: 'deposit' | 'withdrawal' | 'transfer_to_game' | 'transfer_from_game'
           amount: number
           status: 'pending' | 'completed' | 'failed'
+          payment_method: string | null
+          game_name: string | null
           description: string
           created_at: string | null
         }
         Insert: {
           id?: string
           user_id: string
-          type: 'deposit' | 'withdrawal' | 'game_win' | 'game_loss'
+          type: 'deposit' | 'withdrawal' | 'transfer_to_game' | 'transfer_from_game'
           amount: number
           status?: 'pending' | 'completed' | 'failed'
+          payment_method?: string | null
+          game_name?: string | null
           description: string
           created_at?: string | null
         }
         Update: {
           id?: string
           user_id?: string
-          type?: 'deposit' | 'withdrawal' | 'game_win' | 'game_loss'
+          type?: 'deposit' | 'withdrawal' | 'transfer_to_game' | 'transfer_from_game'
           amount?: number
           status?: 'pending' | 'completed' | 'failed'
+          payment_method?: string | null
+          game_name?: string | null
           description?: string
           created_at?: string | null
         }

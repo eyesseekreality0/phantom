@@ -11,6 +11,7 @@ interface ProfileModalProps {
     username: string;
     display_name?: string;
     profile_picture?: string;
+    balance: number;
   } | null;
   onProfileUpdate: () => void;
 }
@@ -79,6 +80,12 @@ export default function ProfileModal({ isOpen, onClose, user, onProfileUpdate }:
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-white mb-2">Edit Profile</h2>
             <p className="text-gray-300">Customize your account appearance</p>
+            
+            {/* Balance Display */}
+            <div className="mt-4 bg-gradient-to-r from-purple-900/30 to-gray-900/30 rounded-xl p-4 border border-purple-500/30">
+              <h3 className="text-purple-300 font-semibold mb-2">Account Balance</h3>
+              <p className="text-white text-2xl font-bold">${user.balance.toFixed(2)}</p>
+            </div>
           </div>
 
           {/* Form */}

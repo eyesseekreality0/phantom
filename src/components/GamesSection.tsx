@@ -2,18 +2,21 @@ import React, { useState } from 'react';
 import { Search, Filter } from 'lucide-react';
 import GameCard from './GameCard';
 
-interface GameLogin {
+interface GameAccount {
+  id: string;
   game: string;
   username: string;
   password: string;
+  balance: number;
 }
 
 interface GamesSectionProps {
   onGameSelect: (gameUrl: string, gameName: string) => void;
-  gameLogins: GameLogin[];
+  gameAccounts: GameAccount[];
+  onTransferToGame: (gameId: string, amount: number) => void;
 }
 
-export default function GamesSection({ onGameSelect, gameLogins }: GamesSectionProps) {
+export default function GamesSection({ onGameSelect, gameAccounts, onTransferToGame }: GamesSectionProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
@@ -100,7 +103,8 @@ export default function GamesSection({ onGameSelect, gameLogins }: GamesSectionP
               logo={game.logo}
               gameUrl={game.url}
               onPlay={() => handleGamePlay(game.url, game.name)}
-              gameLogins={gameLogins}
+              gameAccounts={gameAccounts}
+              onTransferToGame={onTransferToGame}
             />
           ))}
         </div>
