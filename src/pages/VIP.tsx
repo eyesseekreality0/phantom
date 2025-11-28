@@ -39,7 +39,7 @@ export default function VIP() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          {tiers.map((tier, index) => {
+          {tiers.map(tier => {
             const IconComponent = tier.icon;
             return (
               <div key={tier.name} className="bg-gradient-to-br from-gray-900/50 to-purple-900/30 rounded-2xl p-8 border border-purple-500/30 hover:border-purple-400/50 transition-all duration-300 transform hover:scale-105">

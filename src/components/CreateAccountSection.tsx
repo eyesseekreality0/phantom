@@ -12,6 +12,14 @@ export default function CreateAccountSection() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  interface CreatePlayerResponse {
+    success: boolean;
+    username?: string;
+    password?: string;
+    credits?: number | string;
+    error?: string;
+  }
+
   const handleCreate = async () => {
     setLoading(true);
     setError(null);
@@ -25,7 +33,7 @@ export default function CreateAccountSection() {
         }
       });
 
-      let data: any = null;
+      let data: CreatePlayerResponse | null = null;
       try {
         data = await response.json();
       } catch {

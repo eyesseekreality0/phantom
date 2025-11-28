@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, Clock, User, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 
 interface ChatSession {
   id: string;
@@ -22,6 +23,10 @@ interface ChatMessage {
   is_automated: boolean;
   created_at: string;
 }
+
+type ChatMessageRow = ChatMessage & {
+  chat_id: string;
+};
 
 export default function AdminChatPanel() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
@@ -65,8 +70,9 @@ export default function AdminChatPanel() {
           schema: 'public',
           table: 'chat_messages',
           filter: `chat_id=eq.${selectedChat}`
-        }, (payload) => {
-          const newMsg = payload.new as any;
+        }, (payload: RealtimePostgresInsertPayload<ChatMessageRow>) => {
+          const newMsg = payload.new;
+          if (!newMsg) return;
           setMessages(prev => [...prev, {
             id: newMsg.id,
             message: newMsg.message,
