@@ -203,7 +203,10 @@ export async function handler(event) {
       try {
         const parsed = JSON.parse(event.body);
         if (parsed && parsed.credits != null) {
-          requestedCredits = String(parsed.credits);
+          const numericCredits = Number(parsed.credits);
+          if (Number.isFinite(numericCredits) && numericCredits >= 0) {
+            requestedCredits = numericCredits.toString();
+          }
         }
       } catch {
         // ignore bad JSON, use default
