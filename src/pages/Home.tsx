@@ -1,6 +1,7 @@
 import React from 'react';
 import Hero from '../components/Hero';
 import GamesSection from '../components/GamesSection';
+import CreateAccountSection from '../components/CreateAccountSection';
 
 interface GameAccount {
   id: string;
@@ -21,6 +22,7 @@ export default function Home({ onGetStarted, onGameSelect, gameAccounts, onTrans
   return (
     <>
       <Hero onGetStarted={onGetStarted} />
+      <CreateAccountSection />
       <GamesSection onGameSelect={onGameSelect} gameAccounts={gameAccounts} onTransferToGame={onTransferToGame} />
     </>
   );
