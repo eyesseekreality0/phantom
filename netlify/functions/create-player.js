@@ -1,5 +1,6 @@
 // netlify/functions/create-player.js
 
+// --- Fetch helper (works in Netlify & locally) ---
 async function getFetch() {
   if (globalThis.fetch) {
     return globalThis.fetch;
@@ -16,7 +17,7 @@ async function getFetch() {
   }
 }
 
-// Allow overriding the permitted front-end origin without code changes
+// --- CORS / origin settings ---
 const ALLOWED_ORIGIN =
   process.env.PUBLIC_SITE_ORIGIN || "https://phantomsfortune.netlify.app";
 
@@ -27,10 +28,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-/**
- * Helper: generate a random username & password so players don't choose them.
- * You can change the patterns if you want.
- */
+// --- Auto username / password generators ---
 function generateUsername() {
   // e.g. pf_12345678
   const suffix = Math.floor(Math.random() * 1e8)
@@ -49,6 +47,7 @@ function generatePassword(length = 10) {
   return pw;
 }
 
+// --- Ultrapanda configuration from env vars ---
 const BASE_URL =
   process.env.ULTRAPANDA_BASE_URL || "https://ht.ultrapanda.club";
 const FINGERPRINT = process.env.ULTRAPANDA_FINGERPRINT;
@@ -59,12 +58,7 @@ const SAVEPLAYER_STIME = Number(process.env.ULTRAPANDA_SAVEPLAYER_STIME);
 const SAVEPLAYER_TOKEN = process.env.ULTRAPANDA_SAVEPLAYER_TOKEN;
 const SAVEPLAYER_X_TOKEN = process.env.ULTRAPANDA_SAVEPLAYER_X_TOKEN;
 
-// EnterScore constants from your captured request
-const ENTERSIGN = process.env.ULTRAPANDA_ENTERSCORE_SIGN;
-const ENTERSTIME = Number(process.env.ULTRAPANDA_ENTERSCORE_STIME);
-const ENTERTOKEN = process.env.ULTRAPANDA_ENTERSCORE_TOKEN;
-const ENTER_X_TOKEN = process.env.ULTRAPANDA_ENTERSCORE_X_TOKEN;
-
+// Only the env vars we actually need now (no enterScore)
 const REQUIRED_ENV_VARS = {
   ULTRAPANDA_BASE_URL: BASE_URL,
   ULTRAPANDA_FINGERPRINT: FINGERPRINT,
@@ -72,10 +66,6 @@ const REQUIRED_ENV_VARS = {
   ULTRAPANDA_SAVEPLAYER_STIME: SAVEPLAYER_STIME,
   ULTRAPANDA_SAVEPLAYER_TOKEN: SAVEPLAYER_TOKEN,
   ULTRAPANDA_SAVEPLAYER_X_TOKEN: SAVEPLAYER_X_TOKEN,
-  ULTRAPANDA_ENTERSCORE_SIGN: ENTERSIGN,
-  ULTRAPANDA_ENTERSCORE_STIME: ENTERSTIME,
-  ULTRAPANDA_ENTERSCORE_TOKEN: ENTERTOKEN,
-  ULTRAPANDA_ENTERSCORE_X_TOKEN: ENTER_X_TOKEN,
 };
 
 function validateEnv() {
@@ -99,30 +89,18 @@ function validateEnv() {
   }
 }
 
-// New players start with zero credits unless a valid request body overrides it
-const DEFAULT_CREDITS = "0";
-
-function parseRequestedCredits(rawCredits) {
-  const numericCredits = Number(rawCredits);
-  if (!Number.isFinite(numericCredits) || numericCredits < 0) {
-    return DEFAULT_CREDITS;
-  }
-
-  return numericCredits.toString();
-}
-
 /**
- * Create a player on Ultrapanda, then optionally apply starting credits.
+ * Create a player on Ultrapanda using /api/account/savePlayer
+ * NO credits / enterScore calls here at all.
  */
-async function createPlayerOnUltrapanda(fetchFn, account, password, credits) {
-  // 1) Call /api/account/savePlayer
+async function createPlayerOnUltrapanda(fetchFn, account, password) {
   const savePlayerBody = {
     sign: SAVEPLAYER_SIGN,
     stime: SAVEPLAYER_STIME,
     token: SAVEPLAYER_TOKEN,
     account,
     pwd: password,
-    score: "0", // start with zero score; we'll add credits separately
+    score: "0", // must send something; we'll leave it as "0"
     name: "",
     phone: "",
     tel_area_code: "",
@@ -151,50 +129,14 @@ async function createPlayerOnUltrapanda(fetchFn, account, password, credits) {
     );
   }
 
-  let enterScoreJson = null;
-
-  // 2) Call /api/account/enterScore if credits > 0
-  if (Number(credits) > 0) {
-    const enterScoreBody = {
-      sign: ENTERSIGN,
-      stime: ENTERSTIME,
-      token: ENTERTOKEN,
-      account,
-      score: String(credits),
-      remark: "",
-      user_type: "player",
-    };
-
-    const enterRes = await fetchFn(`${BASE_URL}/api/account/enterScore`, {
-      method: "POST",
-      headers: {
-        accept: "application/json, text/plain, */*",
-        "content-type": "application/json;charset=UTF-8",
-        "x-fingerprint": FINGERPRINT,
-        "x-token": ENTER_X_TOKEN,
-        origin: BASE_URL,
-        referer: `${BASE_URL}/`,
-        cookie: "language=en",
-      },
-      body: JSON.stringify(enterScoreBody),
-    });
-
-    enterScoreJson = await enterRes.json().catch(() => ({}));
-
-    if (!enterRes.ok || enterScoreJson.code !== 20000) {
-      throw new Error(
-        `enterScore failed: status ${enterRes.status}, code=${enterScoreJson.code}, msg=${enterScoreJson.msg}`
-      );
-    }
-  }
-
   return {
     savePlayer: savePlayerJson,
-    enterScore: enterScoreJson,
   };
 }
 
+// --- Netlify handler ---
 export async function handler(event) {
+  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 204,
@@ -203,30 +145,17 @@ export async function handler(event) {
     };
   }
 
-  // Only allow POST from your website
+  // Only allow POST from your site
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: "Method Not Allowed" }),
       headers: CORS_HEADERS,
+      body: JSON.stringify({ error: "Method Not Allowed" }),
     };
   }
 
   try {
     validateEnv();
-
-    // Optional: allow a client to send "credits"; otherwise use default
-    let requestedCredits = DEFAULT_CREDITS;
-    if (event.body) {
-      try {
-        const parsed = JSON.parse(event.body);
-        if (parsed && parsed.credits != null) {
-          requestedCredits = parseRequestedCredits(parsed.credits);
-        }
-      } catch {
-        // ignore bad JSON, use default
-      }
-    }
 
     const username = generateUsername();
     const password = generatePassword();
@@ -236,8 +165,7 @@ export async function handler(event) {
     const upstreamResult = await createPlayerOnUltrapanda(
       fetchFn,
       username,
-      password,
-      requestedCredits
+      password
     );
 
     return {
@@ -247,7 +175,6 @@ export async function handler(event) {
         success: true,
         username,
         password,
-        credits: requestedCredits,
         upstream: upstreamResult,
       }),
     };
