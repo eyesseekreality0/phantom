@@ -90,8 +90,17 @@ function validateEnv() {
   }
 }
 
-// New players start with zero credits unless a request body overrides it
+// New players start with zero credits unless a valid request body overrides it
 const DEFAULT_CREDITS = "0";
+
+function parseRequestedCredits(rawCredits) {
+  const numericCredits = Number(rawCredits);
+  if (!Number.isFinite(numericCredits) || numericCredits < 0) {
+    return DEFAULT_CREDITS;
+  }
+
+  return numericCredits.toString();
+}
 
 /**
  * Create a player on Ultrapanda, then optionally apply starting credits.
@@ -203,10 +212,7 @@ export async function handler(event) {
       try {
         const parsed = JSON.parse(event.body);
         if (parsed && parsed.credits != null) {
-          const numericCredits = Number(parsed.credits);
-          if (Number.isFinite(numericCredits) && numericCredits >= 0) {
-            requestedCredits = numericCredits.toString();
-          }
+          requestedCredits = parseRequestedCredits(parsed.credits);
         }
       } catch {
         // ignore bad JSON, use default
