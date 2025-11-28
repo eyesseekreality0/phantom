@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Home from './pages/Home';
@@ -50,14 +50,14 @@ function App() {
   const location = useLocation();
   const supabaseMissingMessage = supabaseConfigErrorMessage;
 
-  const requireSupabase = () => {
+  const requireSupabase = useCallback(() => {
     if (!supabaseClient) {
       alert(supabaseMissingMessage);
       return null;
     }
 
     return supabaseClient;
-  };
+  }, [supabaseClient, supabaseMissingMessage]);
 
   // Scroll to top when route changes
   useEffect(() => {
@@ -89,9 +89,29 @@ function App() {
     );
 
     return () => subscription.unsubscribe();
-  }, [supabaseClient, supabaseMissingMessage]);
+  }, [fetchUserProfile, supabaseClient, supabaseMissingMessage]);
 
-  const fetchUserProfile = async (userId: string) => {
+  const fetchGameAccounts = useCallback(async (userId: string) => {
+    const client = requireSupabase();
+    if (!client) return;
+
+    const { data, error } = await client
+      .from('user_game_accounts')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (data && !error) {
+      setGameAccounts(data.map(account => ({
+        id: account.id,
+        game: account.game_name,
+        username: account.game_username,
+        password: account.game_password,
+        balance: account.game_balance
+      })));
+    }
+  }, [requireSupabase]);
+
+  const fetchUserProfile = useCallback(async (userId: string) => {
     const client = requireSupabase();
     if (!client) return;
 
@@ -117,27 +137,7 @@ function App() {
       // Fetch user's game accounts
       fetchGameAccounts(userId);
     }
-  };
-
-  const fetchGameAccounts = async (userId: string) => {
-    const client = requireSupabase();
-    if (!client) return;
-
-    const { data, error } = await client
-      .from('user_game_accounts')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (data && !error) {
-      setGameAccounts(data.map(account => ({
-        id: account.id,
-        game: account.game_name,
-        username: account.game_username,
-        password: account.game_password,
-        balance: account.game_balance
-      })));
-    }
-  };
+  }, [fetchGameAccounts, requireSupabase]);
   const handleLogin = async (email: string, password: string) => {
     const client = requireSupabase();
     if (!client) return;
@@ -263,7 +263,7 @@ function App() {
     if (!client) return;
 
     try {
-      const { data, error } = await client
+      const { error } = await client
         .from('user_game_accounts')
         .insert({
           user_id: user.id,

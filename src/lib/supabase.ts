@@ -1,11 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Prefer the anonymous key for browser usage; fall back to the provided
+// service role key when no anon key is available so deployments with only
+// VITE_SUPABASE_SERVICE_ROLE_KEY defined still boot. Note that bundling a
+// service role key in the client is not recommended.
+const supabaseAnonKey =
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 
 export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
 export const supabaseConfigErrorMessage =
-  'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment to enable authentication and profile features.'
+  'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or VITE_SUPABASE_SERVICE_ROLE_KEY) in your environment to enable authentication and profile features.'
 
 export const supabase = supabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)

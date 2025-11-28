@@ -26,6 +26,7 @@ export default function GameCard({ name, logo, gameUrl, onPlay, gameAccounts, on
   const gameAccount = gameAccounts.find(account => account.game.toLowerCase() === name.toLowerCase());
 
   const handlePlayClick = () => {
+    onPlay();
     // Always open the game URL
     window.open(gameUrl, '_blank');
     
