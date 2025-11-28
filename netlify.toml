@@ -1,0 +1,12 @@
+[build]
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    # Keep this permissive so the function's own CORS header (which reads PUBLIC_SITE_ORIGIN)
+    # is authoritative. This avoids mismatches when the allowed front-end origin is customized.
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"

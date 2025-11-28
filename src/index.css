@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(88, 28, 135, 0.15), transparent 25%),
+    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.12), transparent 22%),
+    radial-gradient(circle at 50% 75%, rgba(236, 72, 153, 0.1), transparent 30%),
+    linear-gradient(180deg, #0a0418 0%, #05010f 40%, #0b0f21 100%);
+  color: #e5e7eb;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.01em;
+}
+
+#root {
+  min-height: 100vh;
+  background: linear-gradient(180deg, rgba(59, 7, 100, 0.05), rgba(8, 47, 73, 0.1));
+}
+
 @keyframes float-slow {
   0%, 100% { transform: translateY(0px) translateX(0px) rotate(0deg); }
   25% { transform: translateY(-20px) translateX(10px) rotate(5deg); }

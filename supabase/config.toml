@@ -1,0 +1,11 @@
+project_id = "phantom"
+
+[api]
+project_id = "phantom"
+
+[db]
+branch = "main"
+
+# Local studio defaults stay untouched so CLI commands like
+# `supabase db push` can run without extra flags when linked to the
+# phantom project.
