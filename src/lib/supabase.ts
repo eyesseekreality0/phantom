@@ -2,6 +2,19 @@ import { createClient } from '@supabase/supabase-js'
 
 const env = import.meta.env as Record<string, string | undefined>
 
+const netlifyEnvGet = (key: string) => {
+  const netlifyEnv = (globalThis as { Netlify?: { env?: Record<string, string> | { get?: (name: string) => string | undefined } } })
+    .Netlify?.env
+
+  if (!netlifyEnv) return undefined
+
+  if (typeof (netlifyEnv as { get?: (name: string) => string | undefined }).get === 'function') {
+    return (netlifyEnv as { get: (name: string) => string | undefined }).get(key)
+  }
+
+  return (netlifyEnv as Record<string, string | undefined>)[key]
+}
+
 const normalizeEnvValue = (value: string | undefined) => {
   if (!value) return undefined
 
@@ -17,6 +30,12 @@ const getEnvVar = (...keys: string[]) => {
   for (const key of keys) {
     const fromImportMeta = normalizeEnvValue(env[key])
     if (fromImportMeta) return fromImportMeta
+
+    const fromProcess = normalizeEnvValue((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[key])
+    if (fromProcess) return fromProcess
+
+    const fromNetlifyEnv = normalizeEnvValue(netlifyEnvGet(key))
+    if (fromNetlifyEnv) return fromNetlifyEnv
 
     const fromGlobal = normalizeEnvValue((globalThis as Record<string, string | undefined>)[key])
     if (fromGlobal) return fromGlobal
