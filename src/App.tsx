@@ -15,7 +15,11 @@ import ProfileModal from './components/ProfileModal';
 import Footer from './components/Footer';
 import ChatBubble from './components/ChatBubble';
 import AdminChatPanel from './components/AdminChatPanel';
-import { supabase } from './lib/supabase';
+import {
+  supabase,
+  supabaseConfigErrorMessage,
+  supabaseConfigured
+} from './lib/supabase';
 
 interface User {
   id: string;
@@ -42,7 +46,18 @@ function App() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [gameAccounts, setGameAccounts] = useState<GameAccount[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const supabaseClient = supabase;
   const location = useLocation();
+  const supabaseMissingMessage = supabaseConfigErrorMessage;
+
+  const requireSupabase = () => {
+    if (!supabaseClient) {
+      alert(supabaseMissingMessage);
+      return null;
+    }
+
+    return supabaseClient;
+  };
 
   // Scroll to top when route changes
   useEffect(() => {
@@ -51,26 +66,36 @@ function App() {
 
   // Check for existing session on load
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    if (!supabaseClient) {
+      console.warn(supabaseMissingMessage);
+      return;
+    }
+
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchUserProfile(session.user.id);
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      } else {
-        setUser(null);
-        setIsAdmin(false);
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          fetchUserProfile(session.user.id);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+        }
       }
-    });
+    );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabaseClient, supabaseMissingMessage]);
 
   const fetchUserProfile = async (userId: string) => {
-    const { data, error } = await supabase
+    const client = requireSupabase();
+    if (!client) return;
+
+    const { data, error } = await client
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
@@ -95,7 +120,10 @@ function App() {
   };
 
   const fetchGameAccounts = async (userId: string) => {
-    const { data, error } = await supabase
+    const client = requireSupabase();
+    if (!client) return;
+
+    const { data, error } = await client
       .from('user_game_accounts')
       .select('*')
       .eq('user_id', userId);
@@ -111,7 +139,10 @@ function App() {
     }
   };
   const handleLogin = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const client = requireSupabase();
+    if (!client) return;
+
+    const { error } = await client.auth.signInWithPassword({
       email,
       password
     });
@@ -125,8 +156,11 @@ function App() {
   };
 
   const handleSignup = async (email: string, password: string, username: string) => {
+    const client = requireSupabase();
+    if (!client) return;
+
     // First check if username is already taken
-    const { data: existingUser } = await supabase
+    const { data: existingUser } = await client
       .from('user_profiles')
       .select('username')
       .eq('username', username)
@@ -137,7 +171,7 @@ function App() {
       throw new Error('Username taken');
     }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await client.auth.signUp({
       email,
       password
     });
@@ -149,7 +183,7 @@ function App() {
 
     if (data.user) {
       // Create user profile
-      const { error: profileError } = await supabase
+      const { error: profileError } = await client
         .from('user_profiles')
         .insert({
           id: data.user.id,
@@ -170,10 +204,12 @@ function App() {
 
   const handleDeposit = async (amount: number, method: string) => {
     if (!user) return;
+    const client = requireSupabase();
+    if (!client) return;
 
     try {
       // Create transaction record
-      const { error: transactionError } = await supabase
+      const { error: transactionError } = await client
         .from('transactions')
         .insert({
           user_id: user.id,
@@ -188,7 +224,7 @@ function App() {
 
       if (method === 'stripe') {
         // For Stripe, immediately update balance (in real implementation, this would be done via webhook)
-        const { error: balanceError } = await supabase
+        const { error: balanceError } = await client
           .from('user_profiles')
           .update({ balance: user.balance + amount })
           .eq('id', user.id);
@@ -223,9 +259,11 @@ function App() {
 
   const addGameAccount = async (game: string, username: string, password: string) => {
     if (!user) return;
+    const client = requireSupabase();
+    if (!client) return;
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('user_game_accounts')
         .insert({
           user_id: user.id,
@@ -248,13 +286,15 @@ function App() {
 
   const handleTransferToGame = async (gameId: string, amount: number) => {
     if (!user || amount <= 0 || amount > user.balance) return;
+    const client = requireSupabase();
+    if (!client) return;
 
     try {
       const gameAccount = gameAccounts.find(acc => acc.id === gameId);
       if (!gameAccount) return;
 
       // Update user balance
-      const { error: userError } = await supabase
+      const { error: userError } = await client
         .from('user_profiles')
         .update({ balance: user.balance - amount })
         .eq('id', user.id);
@@ -262,7 +302,7 @@ function App() {
       if (userError) throw userError;
 
       // Update game account balance
-      const { error: gameError } = await supabase
+      const { error: gameError } = await client
         .from('user_game_accounts')
         .update({ game_balance: gameAccount.balance + amount })
         .eq('id', gameId);
@@ -270,7 +310,7 @@ function App() {
       if (gameError) throw gameError;
 
       // Create transaction record
-      const { error: transactionError } = await supabase
+      const { error: transactionError } = await client
         .from('transactions')
         .insert({
           user_id: user.id,
@@ -334,6 +374,12 @@ function App() {
       </div>
 
       <div className="relative z-10">
+        {!supabaseConfigured && (
+          <div className="bg-red-900/70 text-red-50 border border-red-500/40 px-4 py-3 text-center text-sm">
+            {supabaseMissingMessage}
+          </div>
+        )}
+
         <Header
           user={user}
           onLogin={() => openAuthModal('login')}
