@@ -49,7 +49,8 @@ function generatePassword(length = 10) {
   return pw;
 }
 
-const BASE_URL = process.env.ULTRAPANDA_BASE_URL || "https://ht.ultrapanda.club";
+const BASE_URL =
+  process.env.ULTRAPANDA_BASE_URL || "https://ht.ultrapanda.club";
 const FINGERPRINT = process.env.ULTRAPANDA_FINGERPRINT;
 
 // SavePlayer constants from your captured request
@@ -79,22 +80,36 @@ const REQUIRED_ENV_VARS = {
 
 function validateEnv() {
   const missing = Object.entries(REQUIRED_ENV_VARS)
-    .filter(([, value]) => value === undefined || value === null || value === "" || Number.isNaN(value))
+    .filter(
+      ([, value]) =>
+        value === undefined ||
+        value === null ||
+        value === "" ||
+        Number.isNaN(value)
+    )
     .map(([key]) => key);
 
   if (missing.length) {
-    const message = `Missing required environment variables: ${missing.join(", ")}`;
+    const message = `Missing required environment variables: ${missing.join(
+      ", "
+    )}`;
     const error = new Error(message);
     error.statusCode = 500;
     throw error;
   }
 }
 
-// How many credits to give new players
-const INITIAL_CREDITS =
-  typeof process.env.ULTRAPANDA_INITIAL_CREDITS === "string"
-    ? process.env.ULTRAPANDA_INITIAL_CREDITS
-    : "0";
+// New players start with zero credits unless a valid request body overrides it
+const DEFAULT_CREDITS = "0";
+
+function parseRequestedCredits(rawCredits) {
+  const numericCredits = Number(rawCredits);
+  if (!Number.isFinite(numericCredits) || numericCredits < 0) {
+    return DEFAULT_CREDITS;
+  }
+
+  return numericCredits.toString();
+}
 
 /**
  * Create a player on Ultrapanda, then optionally apply starting credits.
@@ -201,12 +216,12 @@ export async function handler(event) {
     validateEnv();
 
     // Optional: allow a client to send "credits"; otherwise use default
-    let requestedCredits = INITIAL_CREDITS;
+    let requestedCredits = DEFAULT_CREDITS;
     if (event.body) {
       try {
         const parsed = JSON.parse(event.body);
         if (parsed && parsed.credits != null) {
-          requestedCredits = String(parsed.credits);
+          requestedCredits = parseRequestedCredits(parsed.credits);
         }
       } catch {
         // ignore bad JSON, use default
