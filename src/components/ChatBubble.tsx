@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MessageCircle, X, Send, Skull, User, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { RealtimePostgresInsertPayload } from '@supabase/supabase-js';
 
 interface ChatBubbleProps {
   onGameAccountAdded: (game: string, username: string, password: string) => void;
@@ -13,6 +14,10 @@ interface ChatMessage {
   created_at: string;
   is_automated?: boolean;
 }
+
+type ChatMessageRow = ChatMessage & {
+  chat_id: string;
+};
 
 export default function ChatBubble({ onGameAccountAdded }: ChatBubbleProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -27,7 +32,7 @@ export default function ChatBubble({ onGameAccountAdded }: ChatBubbleProps) {
     if (isOpen && !chatId) {
       initializeChat();
     }
-  }, [isOpen]);
+  }, [chatId, isOpen]);
 
   // Listen for new messages from support
   useEffect(() => {
@@ -39,8 +44,9 @@ export default function ChatBubble({ onGameAccountAdded }: ChatBubbleProps) {
           schema: 'public',
           table: 'chat_messages',
           filter: `chat_id=eq.${chatId}`
-        }, (payload) => {
-          const newMsg = payload.new as any;
+        }, (payload: RealtimePostgresInsertPayload<ChatMessageRow>) => {
+          const newMsg = payload.new;
+          if (!newMsg) return;
           if (newMsg.sender === 'support') {
             setMessages(prev => [...prev, {
               id: newMsg.id,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Crown, MessageCircle, Shield, Award, Clock } from 'lucide-react';
+import { MessageCircle, Shield, Award, Clock } from 'lucide-react';
 
 export default function Footer() {
   return (
