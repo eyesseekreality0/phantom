@@ -1,11 +1,75 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const env = import.meta.env as Record<string, string | undefined>
+
+type NetlifyEnv = Record<string, string | undefined> & {
+  get?: (name: string) => string | undefined
+}
+
+type NetlifyContext = { Netlify?: { env?: NetlifyEnv } }
+
+type ProcessEnv = { process?: { env?: Record<string, string | undefined> } }
+
+type GlobalEnv = Record<string, string | undefined>
+
+const netlifyEnvGet = (key: string) => {
+  const netlifyEnv = (globalThis as NetlifyContext).Netlify?.env
+
+  if (!netlifyEnv) return undefined
+
+  if (typeof netlifyEnv.get === 'function') {
+    return netlifyEnv.get(key)
+  }
+
+  return netlifyEnv[key]
+}
+
+const normalizeEnvValue = (value: string | undefined) => {
+  if (!value) return undefined
+
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') {
+    return undefined
+  }
+
+  return trimmed
+}
+
+const getEnvVar = (...keys: string[]) => {
+  for (const key of keys) {
+    const fromImportMeta = normalizeEnvValue(env[key])
+    if (fromImportMeta) return fromImportMeta
+
+    const fromProcess = normalizeEnvValue((globalThis as ProcessEnv).process?.env?.[key])
+    if (fromProcess) return fromProcess
+
+    const fromNetlifyEnv = normalizeEnvValue(netlifyEnvGet(key))
+    if (fromNetlifyEnv) return fromNetlifyEnv
+
+    const fromGlobal = normalizeEnvValue((globalThis as GlobalEnv)[key])
+    if (fromGlobal) return fromGlobal
+  }
+
+  return undefined
+}
+
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL', 'SUPABASE_URL')
+
+// Prefer the anonymous key for browser usage; fall back to the provided
+// service role key when no anon key is available so deployments with only
+// VITE_SUPABASE_SERVICE_ROLE_KEY defined still boot. Note that bundling a
+// service role key in the client is not recommended.
+const supabaseAnonKey = getEnvVar(
+  'VITE_SUPABASE_ANON_KEY',
+  'SUPABASE_ANON_KEY',
+  'VITE_SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY'
+)
 
 export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
-export const supabaseConfigErrorMessage =
-  'Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment to enable authentication and profile features.'
+export const supabaseConfigErrorMessage = supabaseConfigured
+  ? ''
+  : 'Supabase is not configured. Set VITE_SUPABASE_URL and either VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_SERVICE_ROLE_KEY in your environment to enable authentication and profile features.'
 
 export const supabase = supabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
