@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, Loader2, ShieldCheck, Wallet } from 'lucide-react';
+import type { User } from '../App';
 
 type CreatedAccount = {
   username: string;
@@ -7,7 +8,13 @@ type CreatedAccount = {
   credits: string;
 };
 
-export default function CreateAccountSection() {
+interface CreateAccountSectionProps {
+  onCreateGameAccount: (game: string, username: string, password: string) => Promise<void> | void;
+  onRequireAuth: () => void;
+  user: User | null;
+}
+
+export default function CreateAccountSection({ onCreateGameAccount, onRequireAuth, user }: CreateAccountSectionProps) {
   const [account, setAccount] = useState<CreatedAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,6 +28,12 @@ export default function CreateAccountSection() {
   }
 
   const handleCreate = async () => {
+    if (!user) {
+      setError('Please log in to create your UltraPanda account.');
+      onRequireAuth();
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setAccount(null);
@@ -46,11 +59,14 @@ export default function CreateAccountSection() {
         throw new Error(data?.error || 'Request failed');
       }
 
-      setAccount({
-        username: data.username,
-        password: data.password,
-        credits: String(data.credits ?? '')
-      });
+      if (data.username && data.password) {
+        await onCreateGameAccount('UltraPanda', data.username, data.password);
+        setAccount({
+          username: data.username,
+          password: data.password,
+          credits: String(data.credits ?? '')
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unable to create account.';
       setError(message);
@@ -82,13 +98,13 @@ export default function CreateAccountSection() {
                   <KeyRound className="w-6 h-6 text-purple-300" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400">Step 1</p>
+                  <p className="text-sm text-gray-400">{user ? 'Step 1' : 'Login required'}</p>
                   <p className="text-lg font-semibold">Provision your Ultrapanda login</p>
                 </div>
               </div>
               <button
                 onClick={handleCreate}
-                disabled={loading}
+                disabled={loading || !user}
                 className="inline-flex items-center justify-center px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-blue-600 shadow-lg shadow-purple-500/20 border border-purple-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? (
@@ -146,6 +162,7 @@ export default function CreateAccountSection() {
             <ol className="space-y-3 list-decimal list-inside text-sm text-gray-300">
               <li>We call the secure Netlify function <code>create-player</code>.</li>
               <li>The function provisions a player on Ultrapanda using server-side secrets.</li>
+              <li>We save the new game login to your profile so you can transfer points into UltraPanda.</li>
               <li>Credentials and initial credits are returned to you instantly.</li>
             </ol>
             <p className="text-xs text-gray-400">

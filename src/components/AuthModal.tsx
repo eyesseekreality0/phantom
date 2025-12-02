@@ -8,15 +8,19 @@ interface AuthModalProps {
   onLogin: (email: string, password: string) => void;
   onSignup: (email: string, password: string, username: string) => void;
   onSwitchMode: () => void;
+  supabaseEnabled: boolean;
+  supabaseMessage: string;
 }
 
 export default function AuthModal({ 
   isOpen, 
   mode, 
-  onClose, 
-  onLogin, 
-  onSignup, 
-  onSwitchMode 
+  onClose,
+  onLogin,
+  onSignup,
+  onSwitchMode,
+  supabaseEnabled,
+  supabaseMessage
 }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +33,7 @@ export default function AuthModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
+
     try {
       if (mode === 'login') {
         await onLogin(email, password);
@@ -135,12 +139,22 @@ export default function AuthModal({
 
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !supabaseEnabled}
               className="w-full bg-gradient-to-r from-purple-700 to-gray-700 hover:from-purple-800 hover:to-gray-800 disabled:from-gray-800 disabled:to-gray-900 text-white py-3 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed border border-gray-600/50"
             >
-              {isLoading ? 'Processing...' : (mode === 'login' ? 'Sign In' : 'Join the Casino')}
+              {isLoading
+                ? 'Processing...'
+                : mode === 'login'
+                  ? 'Sign In'
+                  : 'Join the Casino'}
             </button>
           </form>
+
+          {!supabaseEnabled && (
+            <div className="mt-4 rounded-lg border border-yellow-500/30 bg-yellow-500/10 text-yellow-100 px-4 py-3 text-sm">
+              {supabaseMessage}
+            </div>
+          )}
 
           {/* Switch Mode */}
           <div className="text-center mt-6">
