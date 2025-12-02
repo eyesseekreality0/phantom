@@ -17,11 +17,10 @@ import ChatBubble from './components/ChatBubble';
 import AdminChatPanel from './components/AdminChatPanel';
 import {
   supabase,
-  supabaseConfigErrorMessage,
   supabaseConfigured
 } from './lib/supabase';
 
-interface User {
+export interface User {
   id: string;
   email: string;
   username: string;
@@ -48,16 +47,15 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const supabaseClient = supabase;
   const location = useLocation();
-  const supabaseMissingMessage = supabaseConfigErrorMessage;
 
   const requireSupabase = useCallback(() => {
     if (!supabaseClient) {
-      alert(supabaseMissingMessage);
+      console.error('Supabase client is unavailable.');
       return null;
     }
 
     return supabaseClient;
-  }, [supabaseClient, supabaseMissingMessage]);
+  }, [supabaseClient]);
 
   // Scroll to top when route changes
   useEffect(() => {
@@ -92,32 +90,66 @@ function App() {
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
-    if (data && !error) {
-      setUser({
-        id: data.id,
-        email: data.email,
-        username: data.username,
-        display_name: data.display_name,
-        profile_picture: data.profile_picture,
-        balance: data.balance || 0
-      });
-
-      // Check if user is admin (you can modify this logic)
-      setIsAdmin(data.email === 'admin@phantomsfortune.com' || data.username === 'admin');
-
-      // Fetch user's game accounts
-      fetchGameAccounts(userId);
+    if (error && error.code !== 'PGRST116') {
+      console.error('Unable to load user profile', error);
+      return;
     }
+
+    let profile = data;
+
+    // Auto-create a profile for existing auth users that don't yet have one
+    if (!profile) {
+      const { data: authUser } = await client.auth.getUser();
+
+      if (!authUser?.user?.email) {
+        console.error('Authenticated user missing email; cannot seed profile');
+        return;
+      }
+
+      const fallbackUsername =
+        authUser.user.user_metadata?.username || authUser.user.email.split('@')[0];
+
+      const { data: createdProfile, error: creationError } = await client
+        .from('user_profiles')
+        .insert({
+          id: userId,
+          email: authUser.user.email,
+          username: fallbackUsername,
+          balance: 0,
+          display_name: fallbackUsername
+        })
+        .select()
+        .single();
+
+      if (creationError) {
+        console.error('Profile creation failed for authenticated user', creationError);
+        return;
+      }
+
+      profile = createdProfile;
+    }
+
+    setUser({
+      id: profile.id,
+      email: profile.email,
+      username: profile.username,
+      display_name: profile.display_name,
+      profile_picture: profile.profile_picture,
+      balance: profile.balance || 0
+    });
+
+    // Check if user is admin (you can modify this logic)
+    setIsAdmin(profile.email === 'admin@phantomsfortune.com' || profile.username === 'admin');
+
+    // Fetch user's game accounts
+    fetchGameAccounts(userId);
   }, [fetchGameAccounts, requireSupabase]);
 
   // Check for existing session on load
   useEffect(() => {
-    if (!supabaseClient) {
-      console.warn(supabaseMissingMessage);
-      return;
-    }
+    if (!supabaseClient) return;
 
     supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -137,7 +169,7 @@ function App() {
     );
 
     return () => subscription.unsubscribe();
-  }, [fetchUserProfile, supabaseClient, supabaseMissingMessage]);
+  }, [fetchUserProfile, supabaseClient]);
   const handleLogin = async (email: string, password: string) => {
     const client = requireSupabase();
     if (!client) return;
@@ -160,11 +192,16 @@ function App() {
     if (!client) return;
 
     // First check if username is already taken
-    const { data: existingUser } = await client
+    const { data: existingUser, error: existingUserError } = await client
       .from('user_profiles')
       .select('username')
       .eq('username', username)
-      .single();
+      .maybeSingle();
+
+    if (existingUserError && existingUserError.code !== 'PGRST116') {
+      alert('Unable to validate username uniqueness. Please try again.');
+      throw existingUserError;
+    }
 
     if (existingUser) {
       alert('Username is already taken. Please choose a different username.');
@@ -374,12 +411,6 @@ function App() {
       </div>
 
       <div className="relative z-10">
-        {!supabaseConfigured && (
-          <div className="bg-red-900/70 text-red-50 border border-red-500/40 px-4 py-3 text-center text-sm">
-            {supabaseMissingMessage}
-          </div>
-        )}
-
         <Header
           user={user}
           onLogin={() => openAuthModal('login')}
@@ -390,11 +421,14 @@ function App() {
         
         <Routes>
           <Route path="/" element={
-            <Home 
+            <Home
               onGetStarted={() => user ? setShowDepositModal(true) : openAuthModal('signup')}
               onGameSelect={handleGameSelect}
               gameAccounts={gameAccounts}
               onTransferToGame={handleTransferToGame}
+              onCreateGameAccount={addGameAccount}
+              onRequireAuth={() => openAuthModal('login')}
+              user={user}
             />
           } />
           <Route path="/games" element={
@@ -421,6 +455,7 @@ function App() {
           onLogin={handleLogin}
           onSignup={handleSignup}
           onSwitchMode={switchAuthMode}
+          supabaseEnabled={supabaseConfigured}
         />
 
         <DepositModal
