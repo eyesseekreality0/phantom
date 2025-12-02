@@ -64,33 +64,6 @@ function App() {
     window.scrollTo(0, 0);
   }, [location]);
 
-  // Check for existing session on load
-  useEffect(() => {
-    if (!supabaseClient) {
-      console.warn(supabaseMissingMessage);
-      return;
-    }
-
-    supabaseClient.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setIsAdmin(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [fetchUserProfile, supabaseClient, supabaseMissingMessage]);
-
   const fetchGameAccounts = useCallback(async (userId: string) => {
     const client = requireSupabase();
     if (!client) return;
@@ -138,6 +111,33 @@ function App() {
       fetchGameAccounts(userId);
     }
   }, [fetchGameAccounts, requireSupabase]);
+
+  // Check for existing session on load
+  useEffect(() => {
+    if (!supabaseClient) {
+      console.warn(supabaseMissingMessage);
+      return;
+    }
+
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        fetchUserProfile(session.user.id);
+      }
+    });
+
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          fetchUserProfile(session.user.id);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [fetchUserProfile, supabaseClient, supabaseMissingMessage]);
   const handleLogin = async (email: string, password: string) => {
     const client = requireSupabase();
     if (!client) return;
