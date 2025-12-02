@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import Home from './pages/Home';
@@ -64,33 +65,6 @@ function App() {
     window.scrollTo(0, 0);
   }, [location]);
 
-  // Check for existing session on load
-  useEffect(() => {
-    if (!supabaseClient) {
-      console.warn(supabaseMissingMessage);
-      return;
-    }
-
-    supabaseClient.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-
-    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.user) {
-          fetchUserProfile(session.user.id);
-        } else {
-          setUser(null);
-          setIsAdmin(false);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [fetchUserProfile, supabaseClient, supabaseMissingMessage]);
-
   const fetchGameAccounts = useCallback(async (userId: string) => {
     const client = requireSupabase();
     if (!client) return;
@@ -138,6 +112,74 @@ function App() {
       fetchGameAccounts(userId);
     }
   }, [fetchGameAccounts, requireSupabase]);
+
+  const ensureUserProfile = useCallback(
+    async (sessionUser: SupabaseUser) => {
+      const client = requireSupabase();
+      if (!client) return;
+
+      const { data, error } = await client
+        .from('user_profiles')
+        .select('*')
+        .eq('id', sessionUser.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading user profile:', error);
+        return;
+      }
+
+      if (!data) {
+        const fallbackUsername =
+          sessionUser.user_metadata?.username ||
+          sessionUser.email?.split('@')[0] ||
+          `player-${sessionUser.id.slice(0, 8)}`;
+
+        const { error: insertError } = await client.from('user_profiles').insert({
+          id: sessionUser.id,
+          email: sessionUser.email || '',
+          username: fallbackUsername,
+          balance: 0,
+          display_name: fallbackUsername
+        });
+
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+          return;
+        }
+      }
+
+      fetchUserProfile(sessionUser.id);
+    },
+    [fetchUserProfile, requireSupabase]
+  );
+
+  // Check for existing session on load
+  useEffect(() => {
+    if (!supabaseClient) {
+      console.warn(supabaseMissingMessage);
+      return;
+    }
+
+    supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        ensureUserProfile(session.user);
+      }
+    });
+
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          ensureUserProfile(session.user);
+        } else {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [ensureUserProfile, supabaseClient, supabaseMissingMessage]);
   const handleLogin = async (email: string, password: string) => {
     const client = requireSupabase();
     if (!client) return;
@@ -159,44 +201,17 @@ function App() {
     const client = requireSupabase();
     if (!client) return;
 
-    // First check if username is already taken
-    const { data: existingUser } = await client
-      .from('user_profiles')
-      .select('username')
-      .eq('username', username)
-      .single();
-
-    if (existingUser) {
-      alert('Username is already taken. Please choose a different username.');
-      throw new Error('Username taken');
-    }
-
-    const { data, error } = await client.auth.signUp({
+    const { error } = await client.auth.signUp({
       email,
-      password
+      password,
+      options: {
+        data: { username }
+      }
     });
 
     if (error) {
       alert('Signup failed: ' + error.message);
       throw error;
-    }
-
-    if (data.user) {
-      // Create user profile
-      const { error: profileError } = await client
-        .from('user_profiles')
-        .insert({
-          id: data.user.id,
-          email,
-          username,
-          balance: 0,
-          display_name: username
-        });
-
-      if (profileError) {
-        alert('Profile creation failed: ' + profileError.message);
-        throw profileError;
-      }
     }
 
     setShowAuthModal(false);
